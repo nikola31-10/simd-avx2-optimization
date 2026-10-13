@@ -1,0 +1,35 @@
+V-testovi
+
+Test V1 — mali fajl, jedan writer i jedan reader
+
+printf 'Prenos preko prekida radi.\n' > input.txt
+rm -f output.txt
+
+sudo ./build/hypervisor -m 2 -p 4 -g ../guest/build/guest.img ../guest/build/guest.img
+
+
+Test V2 — fajl veći od BUFFER_SIZE
+
+
+prenos u više generacija,
+da writer ne šalje sledeći blok pre ACK-a,
+prepoznavanje poslednjeg bloka manjeg od 1024 bajta.
+
+
+python3 -c 'print("A" * 2500, end="")' > input.txt
+rm -f output.txt
+
+sudo ./build/hypervisor -m 2 -p 4 -g ../guest/build/guest.img ../guest/build/guest.img
+
+
+
+Test V3 — jedan writer i više readera
+
+Pošto svi readeri u trenutnom guest kodu otvaraju output.txt, treba ga navesti kao shared fajl da copy-on-write svakom readeru napravi privatnu kopiju.
+
+python3 -c 'print("B" * 1500, end="")' > input.txt
+rm -f output.txt vm1_output.txt vm2_output.txt
+touch output.txt
+
+
+sudo ./build/hypervisor -m 2 -p 4 -g ../guest/build/guest.img ../guest/build/guest.img ../guest/build/guest.img -f output.txt

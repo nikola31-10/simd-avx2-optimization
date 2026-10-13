@@ -1,0 +1,16 @@
+#ifndef SHARED_PROTOCOL_H
+#define SHARED_PROTOCOL_H
+
+#define SHARED_IO_PORT  0x0510
+#define SHARED_ACK_PORT 0x0520
+
+#define SHARED_IRQ 32
+
+#define ROLE_READER 0
+#define ROLE_WRITER 1
+
+#define BUFFER_SIZE 1024
+
+#define SHARED_NOT_READY 0xFFFFFFFFu
+
+#endif

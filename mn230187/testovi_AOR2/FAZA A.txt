@@ -1,0 +1,48 @@
+FAZA A:
+Test A1 — jedna VM, serijski ispis i hlt
+#include "io.h"
+
+void
+__attribute__((noreturn))
+__attribute__((section(".start")))
+_start(void)
+{
+    const char *s;
+
+    for (s = "A1: guest radi u long mode-u\n"; *s; s++)
+        outb(0xE9, (uint8_t)*s);
+
+    for (;;)
+        asm volatile("hlt");
+}
+
+cd project/guest
+make clean
+make
+
+cd ../host
+make clean
+make
+
+sudo ./build/hypervisor -m 2 -p 4 -g ../guest/build/guest.img
+
+
+int irq_pending = 0;
+
+printf("KVM_EXIT_HLT for %s\n", guest_path);
+    stop = 1;
+    break;
+
+
+
+Test A2 — više VM i POSIX niti
+
+sudo ./build/hypervisor --memory 4 --page 2 --guest ../guest/build/guest.img ../guest/build/guest.img ../guest/build/guest.img
+
+
+Test A3 — nevalidni argumenti
+sudo ./build/hypervisor -m 3 -p 4 -g ../guest/build/guest.img
+
+sudo ./build/hypervisor -m 2 -p 8 -g ../guest/build/guest.img
+
+sudo ./build/hypervisor -m 2 -p 4

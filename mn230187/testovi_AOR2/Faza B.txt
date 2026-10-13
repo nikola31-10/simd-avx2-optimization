@@ -1,0 +1,241 @@
+Faza B:
+guest main:
+
+void
+__attribute__((noreturn))
+__attribute__((section(".start")))
+_start(void)
+{
+    int fd;
+    char buf[16];
+
+    fd = open("test.txt", FILE_O_WR | FILE_O_CREATE);
+    write(fd, "ABCDEF", 6);
+    close(fd);
+
+    fd = open("test.txt", FILE_O_RD);
+    read(fd, buf, 6);
+    close(fd);
+
+    if (buf[0] == 'A')
+        outb(0xE9, 'O');
+    else
+        outb(0xE9, 'X');
+
+    for (;;)
+        asm volatile("hlt");
+}
+
+
+Test B1 — open, write, close, read
+
+rm -f test.txt- prvo obirsemo
+
+#include "io.h"
+#include "file_protocol.h"
+#include "files.h"
+
+
+void
+__attribute__((noreturn))
+__attribute__((section(".start")))
+_start(void)
+{
+    int fd;
+	int result;
+	char buffer[6];
+
+	fd = open("test.txt", FILE_O_WR | FILE_O_CREATE);
+	result = write(fd, "ABCDEF", 6);
+	close(fd);
+
+	fd = open("test.txt", FILE_O_RD);
+	result = read(fd, buffer, 6);
+	close(fd);
+
+    for (;;)
+        asm volatile("hlt");
+}
+
+
+sudo ./build/hypervisor -m 2 -p 4 -g ../guest/build/guest.img
+
+
+cat test.txt
+
+
+Test B2 — lseek
+sudo rm -f seektest.txt
+printf '0123456789ABCDEF' > seektest.txt
+
+#include "io.h"
+#include "files.h"
+
+void
+__attribute__((noreturn))
+__attribute__((section(".start")))
+_start(void)
+{
+    char buffer[5];
+    int fd;
+    int position;
+    int count;
+    const char *s;
+
+    fd = open("seektest.txt", FILE_O_RD);
+
+    if (fd < 0) {
+        s = "B2 OPEN FAIL\n";
+        while (*s)
+            outb(0xE9, (uint8_t)*s++);
+        goto finish;
+    }
+
+    position = lseek(fd, 5, FILE_SEEK_SET);
+    count = read(fd, buffer, 4);
+    close(fd);
+
+    buffer[4] = '\0';
+
+    if (position == 5 &&
+        count == 4 &&
+        buffer[0] == '5' &&
+        buffer[1] == '6' &&
+        buffer[2] == '7' &&
+        buffer[3] == '8') {
+
+        s = "B2 PASS: ";
+        while (*s)
+            outb(0xE9, (uint8_t)*s++);
+
+        for (int i = 0; i < 4; i++)
+            outb(0xE9, (uint8_t)buffer[i]);
+
+        outb(0xE9, '\n');
+    } else {
+        s = "B2 FAIL\n";
+        while (*s)
+            outb(0xE9, (uint8_t)*s++);
+    }
+
+finish:
+    for (;;)
+        asm volatile("hlt");
+}
+
+SEEK: na kraju
+
+#include "io.h"
+#include "files.h"
+
+void
+__attribute__((noreturn))
+__attribute__((section(".start")))
+_start(void)
+{
+    int fd;
+    int pos;
+    const char *s;
+
+    fd = open("seektest.txt", FILE_O_RD);
+
+    pos = lseek(fd, 0, FILE_SEEK_END);
+
+    close(fd);
+
+    if (pos == 16) {
+        s = "B2 SEEK_END PASS\n";
+    } else {
+        s = "B2 SEEK_END FAIL\n";
+    }
+
+    while (*s)
+        outb(0xE9, (uint8_t)*s++);
+
+    for (;;)
+        asm volatile("hlt");
+}
+
+
+
+Test B3 — nevalidno ime i copy-on-write
+
+sudo rm -f a.txt vm0_a.txt vm1_a.txt
+printf 'ORIGINAL' > a.txt
+
+cat a.txt - treba ORIGINAL da se ispise
+
+sudo ./build/hypervisor -m 2 -p 4 -g ../guest/build/guest.img ../guest/build/guest.img -f a.txt
+
+
+
+#include "io.h"
+#include "files.h"
+
+static void print(const char *text)
+{
+    while (*text != '\0') {
+        outb(0xE9, (uint8_t)*text);
+        text++;
+    }
+}
+
+void
+__attribute__((noreturn))
+__attribute__((section(".start")))
+_start(void)
+{
+    int invalid_fd;
+    int shared_fd;
+    int written;
+
+    /*
+     * Prvi znak imena je cifra, pa ime nije validno.
+     * Host treba da vrati -1.
+     */
+    invalid_fd = open(
+        "1invalid.txt",
+        FILE_O_WR | FILE_O_CREATE
+    );
+
+    if (invalid_fd == -1)
+        print("B3 INVALID NAME PASS\n");
+    else {
+        print("B3 INVALID NAME FAIL\n");
+        close(invalid_fd);
+    }
+
+    /*
+     * a.txt će biti prosleđen hostu preko opcije -f.
+     * Na prvom write pozivu host treba da napravi
+     * privatnu kopiju za ovu VM.
+     */
+    shared_fd = open("a.txt", FILE_O_WR);
+
+    if (shared_fd < 0) {
+        print("B3 SHARED OPEN FAIL\n");
+
+        for (;;)
+            asm volatile("hlt");
+    }
+
+    written = write(shared_fd, "COPY", 4);
+
+    if (written == 4)
+        print("B3 COPY-ON-WRITE WRITE PASS\n");
+    else
+        print("B3 COPY-ON-WRITE WRITE FAIL\n");
+
+    if (close(shared_fd) == 0)
+        print("B3 CLOSE PASS\n");
+    else
+        print("B3 CLOSE FAIL\n");
+
+    for (;;)
+        asm volatile("hlt");
+}
+
+
+
+
+
